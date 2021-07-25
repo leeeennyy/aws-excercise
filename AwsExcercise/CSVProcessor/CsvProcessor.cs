@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Domain.Models;
@@ -19,12 +20,20 @@ namespace CSVProcessor
         {
             try
             {
-                List<MeterUsage> meterUsages = await _meterUsageCsvReader.GetMeterUsagesFromFile("consumption.csv");
+                List<MeterUsage> meterUsages;
+                // TODO: Check if the file has been processed before/has the same tags/etags from database
+                // TODO: Change to read the file from s3 bucket
+                using (Stream stream = File.OpenRead(@"C:\Dev\aws-excercise\consumption.csv"))
+                {
+                    meterUsages = _meterUsageCsvReader.GetMeterUsagesFromStream(stream);
+                }
+
                 foreach (var meterUsage in meterUsages)
                 {
                     Console.WriteLine($"{meterUsage.Meter} {meterUsage.DateTime} {meterUsage.Usage}");
                 }
-                // TODO: Store them into a database in cloud
+
+                // TODO: Store usages into a database
             }
             catch (Exception ex)
             {

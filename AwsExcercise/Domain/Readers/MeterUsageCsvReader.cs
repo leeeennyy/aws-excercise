@@ -19,13 +19,20 @@ namespace Domain.Readers
             _meterUsageBucket = meterUsageBucket;
         }
 
-        public async Task<List<MeterUsage>> GetMeterUsagesFromFile(string filename)
+        public async Task<List<MeterUsage>> GetMeterUsagesFromS3Bucket(string filename)
+        {
+            using (GetObjectResponse fileResponse = await _meterUsageBucket.GetFile(filename))
+            using (Stream stream = fileResponse.ResponseStream)
+            {
+                return GetMeterUsagesFromStream(stream);
+            }
+        }
+
+        public List<MeterUsage> GetMeterUsagesFromStream(Stream stream)
         {
             List<MeterUsage> meterUsages = new();
             List<Exception> exceptions = new();
 
-            using (GetObjectResponse fileResponse = await _meterUsageBucket.GetFile(filename))
-            using (Stream stream = fileResponse.ResponseStream)
             using (StreamReader sr = new StreamReader(stream))
             {
                 string line = sr.ReadLine(); // (headers)
@@ -33,38 +40,13 @@ namespace Domain.Readers
                 while ((line = sr.ReadLine()) != null)
                 {
                     row++;
-                    string[] meterUsageData = line.Split(',');
-
-                    if (meterUsageData.Length != 50)
-                    {
-                        exceptions.Add(new InvalidRowException($"Could not parse row {row}."));
-                        continue;
-                    }
-
                     try
                     {
-                        DateTime date = DateTime.Parse(meterUsageData[1]);
-
-                        int timeSlice = 0;
-                        int totalUsage = 0;
-                        for (int i = 2; i < meterUsageData.Length; i++)
-                        {
-                            MeterUsage meterUsage = new MeterUsage
-                            {
-                                Meter = meterUsageData[0],
-                                DateTime = date.AddMinutes(timeSlice * 30),
-                                Usage = int.Parse(meterUsageData[i])
-                            };
-
-                            totalUsage += meterUsage.Usage;
-                            meterUsages.Add(meterUsage);
-                        }
-
-                        Console.WriteLine($"{meterUsageData[0]} {date} {totalUsage}");
+                        meterUsages.AddRange(GetMeterUsagesFromRow(line, row));
                     }
-                    catch (Exception)
+                    catch (Exception ex)
                     {
-                        exceptions.Add(new InvalidRowException($"Could not parse row {row}."));
+                        exceptions.Add(ex);
                     }
                 }
             }
@@ -72,6 +54,40 @@ namespace Domain.Readers
             if (exceptions.Any())
             {
                 throw new AggregateException(exceptions);
+            }
+
+            return meterUsages;
+        }
+
+        private List<MeterUsage> GetMeterUsagesFromRow(string csvRow, int rowNumber)
+        {
+            List<MeterUsage> meterUsages = new();
+            string[] meterUsageData = csvRow.Split(',');
+
+            if (meterUsageData.Length != 50)
+            {
+                throw new InvalidRowException($"Invalid column length in row {rowNumber}.");
+            }
+
+            try
+            {
+                DateTime date = DateTime.Parse(meterUsageData[1]);
+
+                int timeSlice = 0;
+                for (int i = 2; i < meterUsageData.Length; i++)
+                {
+                    MeterUsage meterUsage = new MeterUsage
+                    {
+                        Meter = meterUsageData[0],
+                        DateTime = date.AddMinutes(timeSlice * 30),
+                        Usage = int.Parse(meterUsageData[i])
+                    };
+                    meterUsages.Add(meterUsage);
+                }
+            }
+            catch (Exception)
+            {
+                throw new InvalidRowException($"Could not parse row {rowNumber}.");
             }
 
             return meterUsages;
