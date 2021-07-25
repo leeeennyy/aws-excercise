@@ -14,9 +14,10 @@ namespace AwsExcercise.Controllers
     {
         // GET: api/<MeterUsageController>
         [HttpGet]
-        public int GetTotalUsage()
+        public int GetTotalUsage(DateTime date)
         {
-            return 0;
+            // TODO: Meter usage repository to retrieve the meter usages for a specific date
+            throw new NotImplementedException("Needs to be implemented");
         }
     }
 }
