@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace CSVProcessor
+namespace Domain.Models
 {
     public class Meter
     {

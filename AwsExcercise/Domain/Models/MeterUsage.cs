@@ -1,10 +1,10 @@
 ﻿using System;
 
-namespace CSVProcessor
+namespace Domain.Models
 {
     public class MeterUsage
     {
-        public Guid MeterId { get; set; }
+        public string Meter { get; set; }
         public DateTime DateTime { get; set; }
         public int Usage { get; set; }
     }
