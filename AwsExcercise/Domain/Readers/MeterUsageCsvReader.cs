@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.IO;
 using Amazon.S3.Model;
-using Domain.Exceptions;
 using Domain.Models;
 using Domain.Repositories;
 
@@ -13,10 +12,13 @@ namespace Domain.Readers
     public class MeterUsageCsvReader : IMeterUsageCsvReader
     {
         private readonly IMeterUsageS3Bucket _meterUsageBucket;
+        private readonly IMeterUsageCsvRowReader _meterUsageCsvRowReader;
 
-        public MeterUsageCsvReader(IMeterUsageS3Bucket meterUsageBucket)
+        public MeterUsageCsvReader(IMeterUsageS3Bucket meterUsageBucket,
+            IMeterUsageCsvRowReader meterUsageCsvRowReader)
         {
             _meterUsageBucket = meterUsageBucket;
+            _meterUsageCsvRowReader = meterUsageCsvRowReader;
         }
 
         public async Task<List<MeterUsage>> GetMeterUsagesFromS3Bucket(string filename)
@@ -42,7 +44,7 @@ namespace Domain.Readers
                     row++;
                     try
                     {
-                        meterUsages.AddRange(GetMeterUsagesFromRow(line, row));
+                        meterUsages.AddRange(_meterUsageCsvRowReader.GetMeterUsagesFromRow(line, row));
                     }
                     catch (Exception ex)
                     {
@@ -54,40 +56,6 @@ namespace Domain.Readers
             if (exceptions.Any())
             {
                 throw new AggregateException(exceptions);
-            }
-
-            return meterUsages;
-        }
-
-        private List<MeterUsage> GetMeterUsagesFromRow(string csvRow, int rowNumber)
-        {
-            List<MeterUsage> meterUsages = new();
-            string[] meterUsageData = csvRow.Split(',');
-
-            if (meterUsageData.Length != 50)
-            {
-                throw new InvalidRowException($"Invalid column length in row {rowNumber}.");
-            }
-
-            try
-            {
-                DateTime date = DateTime.Parse(meterUsageData[1]);
-
-                int timeSlice = 0;
-                for (int i = 2; i < meterUsageData.Length; i++)
-                {
-                    MeterUsage meterUsage = new MeterUsage
-                    {
-                        Meter = meterUsageData[0],
-                        DateTime = date.AddMinutes(timeSlice * 30),
-                        Usage = int.Parse(meterUsageData[i])
-                    };
-                    meterUsages.Add(meterUsage);
-                }
-            }
-            catch (Exception)
-            {
-                throw new InvalidRowException($"Could not parse row {rowNumber}.");
             }
 
             return meterUsages;
